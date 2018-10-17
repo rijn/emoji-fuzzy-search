@@ -1,0 +1,30 @@
+{
+  "name": "emoji-fuzzy-search",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:rijn/emoji-fuzzy-search.git",
+  "author": "Rijn <bxbian951122@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/cli": "^7.1.2",
+    "@babel/core": "^7.1.2",
+    "@babel/preset-env": "^7.1.0"
+  },
+  "dependencies": {
+    "@babel/polyfill": "^7.0.0",
+    "@babel/register": "^7.0.0",
+    "async": "^2.6.1",
+    "clear": "^0.1.0",
+    "emoji-datasource-apple": "^4.1.0",
+    "fuse.js": "^3.2.1",
+    "inquirer": "^6.2.0",
+    "lodash": "^4.17.11",
+    "papaparse": "^4.6.1"
+  },
+  "bin": {
+    "emoji-fuzzy-search": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
