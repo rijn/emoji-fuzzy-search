@@ -1,57 +1,20 @@
-import Fuse from 'fuse.js';
-import Papa from 'papaparse';
+import { BayseClassifier, FuseClassifier, TfIdfClassifier } from './classifiers';
+import { convertEmojiToKeywords, loadEmojiLib, loadReactionData } from './emoji';
+import { getAllSubsets, isAscii } from './utils';
+
+import Enum from 'enum';
+import EventEmitter from 'events';
 import _ from 'lodash';
 import clear from 'clear';
-import emojiDatasource from 'emoji-datasource-apple';
 import fp from 'lodash/fp';
-import fs from 'fs';
 import inquirer from 'inquirer';
+import natural from 'natural';
 import whilst from 'async/whilst';
-import EventEmitter from 'events';
 
-const loadEmojiLib = () => {
-  return _.chain(emojiDatasource)
-    .map((v) => ({
-        char: String.fromCodePoint.apply(
-            null,
-            v.unified.split('-').map(v => `0x${v}`)
-        ),
-        key: v.short_name,
-        keywords: _.join(_.union([ _.isEmpty(v.name) ? v.short_name : v.name ], v.short_names), ' '),
-        lib: v
-    }))
-    .keyBy('char')
-    .value();
-};
+Enum.register();
 
-const convertEmojiToKeywords = (emojiLib, emoji) => {
-  return _.chain(emoji)
-    .split('')
-    .map(emoji => [ _.get(emojiLib, [ emoji, 'keywords' ]) ])
-    .flatten()
-    .value();
-};
-
-const loadReactionData = (emojiLib) => {
-  const raw = fs.readFileSync('reactions.csv', 'utf8');
-  const csv = Papa.parse(raw, { header: true });
-  const reactions = _.chain(csv)
-    .get('data')
-    .map(fp.omit([ 'name', 'userId' ]))
-    .map(reaction => {
-      reaction.keywords = _.chain(reaction)
-        .get('id')
-        .split('')
-        .map(emoji => convertEmojiToKeywords(emojiLib, emoji))
-        .join(' ')
-        .split(' ')
-        .compact()
-        .value();
-      return reaction;
-    })
-    .value();
-  return reactions;
-};
+const CLASSIFICATION_METHODS = new Enum([ 'FUSE', 'BAYSE', 'TF_IDF' ]);
+const CLASSIFICATION_METHOD = CLASSIFICATION_METHODS.TF_IDF;
 
 const promptQuery = () => {
   const questions = [
@@ -75,31 +38,24 @@ const promptFeedback = () => {
   return inquirer.prompt(questions);
 };
 
-const fuseOptions = {
-  shouldSort: true,
-  tokenize: true,
-  matchAllTokens: true,
-  includeScore: true,
-  threshold: 0.6,
-  keys: [ 'keywords', 'id' ],
-  id: 'id'
-};
-
-const getAllSubsets = theArray => theArray.reduce(
-  (subsets, value) => subsets.concat(
-    subsets.map(set => [value,...set])
-  ),
-  [[]]
-);
-
-const isAscii = str => {
-  return /^[\x00-\x7F]*$/.test(str);
-};
-
 const main = async () => {
   const emojiLib = loadEmojiLib();
   const reactions = loadReactionData(emojiLib);
-  const fuse = new Fuse(reactions, fuseOptions);
+
+  let classifier;
+
+  switch (CLASSIFICATION_METHOD) {
+    case CLASSIFICATION_METHODS.BAYSE:
+      classifier = new BayseClassifier(reactions);
+      break;
+    case CLASSIFICATION_METHODS.FUSE:
+      classifier = new FuseClassifier(reactions); 
+      break;
+    case CLASSIFICATION_METHODS.TF_IDF:
+      classifier = new TfIdfClassifier(reactions);
+      break;
+  }
+
   let _feedback = true;
   await whilst(
     () => _feedback,
@@ -107,6 +63,8 @@ const main = async () => {
       clear();
 
       const { query } = await promptQuery();
+
+      if (!query) return;
 
       let subsets;
       if (isAscii(query)) {
@@ -138,7 +96,7 @@ const main = async () => {
             return [];
           }
 
-          let result = fuse.search(_kws);
+          const result = classifier.classify(_kws);
 
           return result;
         })

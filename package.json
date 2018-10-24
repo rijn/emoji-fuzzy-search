@@ -16,9 +16,11 @@
     "async": "^2.6.1",
     "clear": "^0.1.0",
     "emoji-datasource-apple": "^4.1.0",
+    "enum": "^2.5.0",
     "fuse.js": "^3.2.1",
     "inquirer": "^6.2.0",
     "lodash": "^4.17.11",
+    "natural": "^0.6.1",
     "papaparse": "^4.6.1"
   },
   "bin": {
