@@ -92,6 +92,10 @@ const getAllSubsets = theArray => theArray.reduce(
   [[]]
 );
 
+const isAscii = str => {
+  return /^[\x00-\x7F]*$/.test(str);
+};
+
 const main = async () => {
   const emojiLib = loadEmojiLib();
   const reactions = loadReactionData(emojiLib);
@@ -104,11 +108,16 @@ const main = async () => {
 
       const { query } = await promptQuery();
 
-      const subsets = _.split(query, '').length > 2
-        ? getAllSubsets(_.split(query, ''))
-          .filter(a => !_.isEmpty(a))
-          .filter(a => a.length > 1)
-        : [ _.split(query, '') ];
+      let subsets;
+      if (isAscii(query)) {
+        subsets = [ _.split(query, ' ') ];
+      } else {
+        subsets = _.split(query, '').length > 1
+          ? getAllSubsets(_.split(query, ''))
+            .filter(a => !_.isEmpty(a))
+            // .filter(a => a.length > 1)
+          : [ _.split(query, '') ];
+      }
 
       const size = subsets.length;
 
@@ -118,7 +127,7 @@ const main = async () => {
 
       const result = _.chain(subsets)
         .map(subset => {
-          const kws = convertEmojiToKeywords(emojiLib, subset.join(''));
+          const kws = isAscii(subset.join('')) ? subset : convertEmojiToKeywords(emojiLib, subset.join(''));
           const _kws = _.chain(kws).compact().join(' ').value();
 
           console.log(_kws);
@@ -140,7 +149,7 @@ const main = async () => {
           'score': _.sumBy(objs, 'score') / size
         }))
         .sortBy('score')
-        .take(10)
+        .take(20)
         .value();
 
       console.log(result);
