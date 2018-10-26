@@ -107,7 +107,7 @@ const main = async () => {
           'score': _.sumBy(objs, 'score') / size
         }))
         .sortBy('score')
-        .take(20)
+        .take(10)
         .value();
 
       console.log(result);
