@@ -1,8 +1,8 @@
-import Papa from 'papaparse';
-import _ from 'lodash';
-import emojiDatasource from 'emoji-datasource-apple';
-import fp from 'lodash/fp';
-import fs from 'fs';
+const Papa = require('papaparse');
+const _ = require('lodash');
+const emojiDatasource = require('emoji-datasource-apple');
+const fp = require('lodash/fp');
+const fs = require('fs');
 
 const loadEmojiLib = () => {
   return _.chain(emojiDatasource)
@@ -48,4 +48,4 @@ const loadReactionData = (emojiLib) => {
   return reactions;
 };
 
-export { loadEmojiLib, convertEmojiToKeywords, loadReactionData };
+module.exports = { loadEmojiLib, convertEmojiToKeywords, loadReactionData };

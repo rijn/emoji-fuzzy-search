@@ -14,19 +14,27 @@
     "@babel/polyfill": "^7.0.0",
     "@babel/register": "^7.0.0",
     "async": "^2.6.1",
+    "body-parser": "^1.18.3",
     "clear": "^0.1.0",
+    "compression": "^1.7.3",
+    "cors": "^2.8.4",
     "emoji-datasource-apple": "^4.1.0",
     "enum": "^2.5.0",
+    "express": "^4.16.4",
     "fuse.js": "^3.2.1",
+    "helmet": "^3.14.0",
     "inquirer": "^6.2.0",
     "lodash": "^4.17.11",
     "natural": "^0.6.1",
-    "papaparse": "^4.6.1"
+    "papaparse": "^4.6.1",
+    "uuid": "^3.3.2",
+    "winston": "^3.1.0"
   },
   "bin": {
     "emoji-fuzzy-search": "./index.js"
   },
   "scripts": {
-    "start": "node index.js"
+    "cli": "node cli.js",
+    "start": "node server.js"
   }
 }

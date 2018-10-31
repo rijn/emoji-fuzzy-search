@@ -9,4 +9,4 @@ const isAscii = str => {
   return /^[\x00-\x7F]*$/.test(str);
 };
 
-export { getAllSubsets, isAscii };
+module.exports = { getAllSubsets, isAscii };
