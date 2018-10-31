@@ -50,7 +50,7 @@ if (fs.existsSync(databasePath)) {
 app.post('/documents', (req, res) => {
   const { emoji, meta: _meta } = req.body || {};
   const key = uuidv4();
-  tfidf.addDocument(convertEmojiToKeywords(emojiLib, emoji)[0], key);
+  tfidf.addDocument(convertEmojiToKeywords(emojiLib, emoji).join(' '), key);
   meta[key] = _meta;
   emojis[key] = emoji;
 
@@ -62,7 +62,7 @@ app.post('/documents', (req, res) => {
 app.get('/search/:query', (req, res) => {
   const { query } = req.params || {};
   const { limit } = _.defaults(req.query, { limit: 10 });
-  const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query)[0];
+  const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
   tfidf.tfidfs(kws, (i, measure, key) => {
     result[key] = { meta: meta[key], measure, emoji: emojis[key] };
