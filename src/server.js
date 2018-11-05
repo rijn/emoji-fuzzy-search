@@ -149,10 +149,10 @@ app.get('/search/:query', (req, res) => {
   });
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
-      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude - geofence-longitudeDelta },
-      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude - geofence-longitudeDelta },
-      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude + geofence-longitudeDelta },
-      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude + geofence-longitudeDelta }
+      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude - geofence.longitudeDelta },
+      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude - geofence.longitudeDelta },
+      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude + geofence.longitudeDelta },
+      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude + geofence.longitudeDelta }
     ] )
     : () => true;
   const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
