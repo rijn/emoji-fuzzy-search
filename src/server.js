@@ -11,6 +11,8 @@ const _ = require('lodash');
 const uuidv4 = require('uuid/v4');
 const { loadEmojiLib, convertEmojiToKeywords } = require('./emoji');
 const { isAscii } = require('./utils');
+const geolib = require('geolib');
+const Ajv = require('ajv');
 
 const logger = createLogger({
   level: 'info',
@@ -47,8 +49,49 @@ if (fs.existsSync(databasePath)) {
   tfidf = new TfIdf(o.tfidf);
 }
 
+const ajv = new Ajv();
+
+const documentPostSchema = {
+  properties: {
+    emoji: {
+      type: 'string'
+    },
+    meta: { oneOf: [
+      {
+        type: 'object',
+        properties: {
+          geolocation: { oneOf: [ 
+            { type: 'object',
+              properties: {
+                latitude: { type: 'number' },
+                longitude: { type: 'number' }
+              },
+              required: [ 'latitude', 'longitude' ],
+              additionalProperties: false
+            },
+            { type: 'null' }
+          ] }
+        }
+      },
+      { type: 'null' }
+    ] }
+  },
+  required: [ 'emoji' ]
+}
+const documentPostValidate = ajv.compile(documentPostSchema);
+
+/**
+ * @params
+ *   emoji
+ *   geolocation: shape of { latitude, longitude }
+ */
 app.post('/documents', (req, res) => {
-  const { emoji, meta: _meta } = req.body || {};
+  var valid = documentPostValidate(req.body);
+  if (!valid) {
+    res.status(400).json(documentPostValidate.errors).end();
+    return;
+  }
+  const { emoji, meta: _meta, geolocation } = req.body || {};
   const key = uuidv4();
   tfidf.addDocument(convertEmojiToKeywords(emojiLib, emoji).join(' '), key);
   meta[key] = _meta;
@@ -59,17 +102,67 @@ app.post('/documents', (req, res) => {
   res.status(201).end();
 });
 
+const searchSchema = {
+  properties: {
+    limit: {
+      type: 'number'
+    },
+    geofence: {
+      type: 'object',
+      oneOf: [ {
+        properties: {
+          latitude: { type: 'number' },
+          longitude: { type: 'number' },
+          radius: { type: 'number' }
+        },
+        required: [ 'latitude', 'longitude', 'radius' ],
+        additionalProperties: false
+      }, {
+        properties: {
+          latitude: { type: 'number' },
+          longitude: { type: 'number' },
+          latitudeDelta: { type: 'number' },
+          longitudeDelta: { type: 'number' }
+        },
+        required: [ 'latitude', 'longitude', 'latitudeDelta', 'longitudeDelta' ],
+        additionalProperties: false
+      } ]
+    }
+  }
+}
+const searchValidate = ajv.compile(searchSchema);
+
 app.get('/search/:query', (req, res) => {
+  const params = req.query;
+  if (_.has(params, 'geofence')) params.geofence = JSON.parse(params.geofence);
+  var valid = searchValidate(params);
+  if (!valid) {
+    res.status(400).json(searchValidate.errors).end();
+    return;
+  }
   const { query } = req.params || {};
-  const { limit } = _.defaults(req.query, { limit: 10 });
+  const { limit, geofence } = _.defaults(params, { limit: 10 });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
   tfidf.tfidfs(kws, (i, measure, key) => {
     result[key] = { meta: meta[key], measure, emoji: emojis[key] };
   });
+  const filterIsPointInside = geofence && !_.has(geofence, 'radius')
+    ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
+      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude - geofence-longitudeDelta },
+      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude - geofence-longitudeDelta },
+      { latitude: geofence.latitude + geofence.latitudeDelta, longitude: geofence.longitude + geofence-longitudeDelta },
+      { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude + geofence-longitudeDelta }
+    ] )
+    : () => true;
+  const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
+    ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
+    : () => true;
   result = _.chain(result)
     .values()
     .filter(o => !!o.measure)
+    .filter(filterIsPointInside)
+    .filter(filterIsPointInCircle)
     .sortBy('measure')
     .reverse()
     .take(limit)

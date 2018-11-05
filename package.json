@@ -13,6 +13,7 @@
   "dependencies": {
     "@babel/polyfill": "^7.0.0",
     "@babel/register": "^7.0.0",
+    "ajv": "^6.5.5",
     "async": "^2.6.1",
     "body-parser": "^1.18.3",
     "clear": "^0.1.0",
@@ -22,6 +23,7 @@
     "enum": "^2.5.0",
     "express": "^4.16.4",
     "fuse.js": "^3.2.1",
+    "geolib": "^2.0.24",
     "helmet": "^3.14.0",
     "inquirer": "^6.2.0",
     "lodash": "^4.17.11",
