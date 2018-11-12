@@ -19,10 +19,14 @@ const loadEmojiLib = () => {
     .value();
 };
 
+const customEmojiUnicodeMap = {
+  [ decodeURI('%E2%98%95%EF%B8%8F') ]: decodeURI('%E2%98%95')
+};
+
 const convertEmojiToKeywords = (emojiLib, emoji) => {
   return _.chain(emoji)
     .split('')
-    .map(emoji => [ _.get(emojiLib, [ emoji, 'keywords' ]) ])
+    .map(emoji => [ _.get(emojiLib, [ _.get(customEmojiUnicodeMap, emoji) || emoji, 'keywords' ]) ])
     .flatten()
     .value();
 };
