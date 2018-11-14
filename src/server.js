@@ -142,7 +142,7 @@ app.get('/search/:query', (req, res) => {
     return;
   }
   const { query } = req.params || {};
-  const { limit, geofence } = _.defaults(params, { limit: 50 });
+  const { limit, geofence } = _.defaults(params, { limit: 100 });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
   let measure1Sum = 0;
@@ -153,21 +153,23 @@ app.get('/search/:query', (req, res) => {
   result = _.map(result, term => ({ ...term, measure1: term.measure1 / measure1Sum }));
 
   // test n-gram
-  const querySplitted = _.split(query, '');
-  const subsets = _.chain([...Array(querySplitted.length).keys()])
-    .map(start => _.map([...Array(querySplitted.length - start).keys()], offset => ({ start, length: offset + 1 })))
-    .flatten()
-    .map(({ start, length }) => querySplitted.slice(start, start + length))
-    .map(fp.join(''))
-    .value();
-  const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
-  _.each(result, term => {
-    term.measure2 = _.chain(subsets)
-      .map(subset => (_.includes(term.emoji, subset) ? 1 : 0) * _.size(subset))
-      .sum()
-      .divide(subsetLengthSum)
+  if (!isAscii(query)) {
+    const querySplitted = _.split(query, '');
+    const subsets = _.chain([...Array(querySplitted.length).keys()])
+      .map(start => _.map([...Array(querySplitted.length - start).keys()], offset => ({ start, length: offset + 1 })))
+      .flatten()
+      .map(({ start, length }) => querySplitted.slice(start, start + length))
+      .map(fp.join(''))
       .value();
-  });
+    const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
+    _.each(result, term => {
+      term.measure2 = _.chain(subsets)
+        .map(subset => (_.includes(term.emoji, subset) ? 1 : 0) * _.size(subset))
+        .sum()
+        .divide(subsetLengthSum)
+        .value();
+    });
+  }
 
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
