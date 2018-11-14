@@ -13,6 +13,7 @@ const { loadEmojiLib, convertEmojiToKeywords } = require('./emoji');
 const { isAscii } = require('./utils');
 const geolib = require('geolib');
 const Ajv = require('ajv');
+const fp = require('lodash/fp');
 
 const logger = createLogger({
   level: 'info',
@@ -141,12 +142,33 @@ app.get('/search/:query', (req, res) => {
     return;
   }
   const { query } = req.params || {};
-  const { limit, geofence } = _.defaults(params, { limit: 10 });
+  const { limit, geofence } = _.defaults(params, { limit: 50 });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
+  let measure1Sum = 0;
   tfidf.tfidfs(kws, (i, measure, key) => {
-    result[key] = { meta: meta[key], measure, emoji: emojis[key] };
+    measure1Sum += measure;
+    result[key] = { meta: meta[key], measure1: measure, emoji: emojis[key] };
   });
+  result = _.map(result, term => ({ ...term, measure1: term.measure1 / measure1Sum }));
+
+  // test n-gram
+  const querySplitted = _.split(query, '');
+  const subsets = _.chain([...Array(querySplitted.length).keys()])
+    .map(start => _.map([...Array(querySplitted.length - start).keys()], offset => ({ start, length: offset + 1 })))
+    .flatten()
+    .map(({ start, length }) => querySplitted.slice(start, start + length))
+    .map(fp.join(''))
+    .value();
+  const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
+  _.each(result, term => {
+    term.measure2 = _.chain(subsets)
+      .map(subset => (_.includes(term.emoji, subset) ? 1 : 0) * _.size(subset))
+      .sum()
+      .divide(subsetLengthSum)
+      .value();
+  });
+
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
       { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude - geofence.longitudeDelta },
@@ -159,7 +181,7 @@ app.get('/search/:query', (req, res) => {
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
   result = _.chain(result)
-    .values()
+    .map(o => ({ ...o, measure: _.sum([ o.measure1, o.measure2 ]) }))
     .filter(o => !!o.measure)
     .filter(filterIsPointInside)
     .filter(filterIsPointInCircle)
