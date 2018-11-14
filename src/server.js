@@ -142,7 +142,7 @@ app.get('/search/:query', (req, res) => {
     return;
   }
   const { query } = req.params || {};
-  const { limit, geofence } = _.defaults(params, { limit: 100 });
+  const { limit, geofence, fuzzy } = _.defaults(params, { limit: 100 });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
   let measure1Sum = 0;
@@ -182,6 +182,9 @@ app.get('/search/:query', (req, res) => {
   const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
+
+  if (!fuzzy) _.each(result, term => term.measure1 = 0);
+
   result = _.chain(result)
     .map(o => ({ ...o, measure: _.sum([ o.measure1 || 0, o.measure2 || 0 ]) }))
     .filter(o => !!o.measure)
