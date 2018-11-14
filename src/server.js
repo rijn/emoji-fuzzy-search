@@ -9,7 +9,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const _ = require('lodash');
 const uuidv4 = require('uuid/v4');
-const { loadEmojiLib, convertEmojiToKeywords } = require('./emoji');
+const { loadEmojiLib, convertEmojiToKeywords, stripVariationSelectors } = require('./emoji');
 const { isAscii } = require('./utils');
 const geolib = require('geolib');
 const Ajv = require('ajv');
@@ -164,7 +164,7 @@ app.get('/search/:query', (req, res) => {
     const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
     _.each(result, term => {
       term.measure2 = _.chain(subsets)
-        .map(subset => (_.includes(term.emoji, subset) ? 1 : 0) * _.size(subset))
+        .map(subset => (_.includes(stripVariationSelectors(term.emoji), stripVariationSelectors(subset)) ? 1 : 0) * _.size(subset))
         .sum()
         .divide(subsetLengthSum)
         .value();

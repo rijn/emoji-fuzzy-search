@@ -26,7 +26,7 @@ const customEmojiUnicodeMap = {
 
 const stripVariationSelectors = string => {
   const regex = /([\u180B-\u180D\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF])/g;
-  return string.replace(regex, '');
+  return string && _.isString(string) && string.replace(regex, '');
 };
 
 const convertEmojiToKeywords = (emojiLib, emoji) => {
