@@ -183,7 +183,7 @@ app.get('/search/:query', (req, res) => {
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
   result = _.chain(result)
-    .map(o => ({ ...o, measure: _.sum([ o.measure1, o.measure2 ]) }))
+    .map(o => ({ ...o, measure: _.sum([ o.measure1 || 0, o.measure2 || 0 ]) }))
     .filter(o => !!o.measure)
     .filter(filterIsPointInside)
     .filter(filterIsPointInCircle)
