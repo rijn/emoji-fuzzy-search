@@ -20,13 +20,22 @@ const loadEmojiLib = () => {
 };
 
 const customEmojiUnicodeMap = {
-  [ decodeURI('%E2%98%95%EF%B8%8F') ]: decodeURI('%E2%98%95')
+  [ decodeURI('%E2%98%95%EF%B8%8F') ]: decodeURI('%E2%98%95'), // hot-beverage
+  [ decodeURI('%E2%AD%95%EF%B8%8F') ]: decodeURI('%E2%AD%95'), // heavy-large-circle
+};
+
+const stripVariationSelectors = string => {
+  const regex = /([\u180B-\u180D\uFE00-\uFE0F]|\uDB40[\uDD00-\uDDEF])/g;
+  return string.replace(regex, '');
 };
 
 const convertEmojiToKeywords = (emojiLib, emoji) => {
   return _.chain(emoji)
     .split('')
-    .map(emoji => [ _.get(emojiLib, [ _.get(customEmojiUnicodeMap, emoji) || emoji, 'keywords' ]) ])
+    .map(emoji => [
+      _.get(emojiLib, [ _.get(customEmojiUnicodeMap, emoji) || emoji, 'keywords' ])
+      || _.get(emojiLib, [ stripVariationSelectors(emoji), 'keywords' ])
+    ])
     .flatten()
     .value();
 };
@@ -52,4 +61,4 @@ const loadReactionData = (emojiLib) => {
   return reactions;
 };
 
-module.exports = { loadEmojiLib, convertEmojiToKeywords, loadReactionData };
+module.exports = { loadEmojiLib, convertEmojiToKeywords, loadReactionData, stripVariationSelectors };
