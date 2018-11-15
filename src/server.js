@@ -142,7 +142,11 @@ app.get('/search/:query', (req, res) => {
     return;
   }
   const { query } = req.params || {};
-  const { limit, geofence, fuzzy } = _.defaults(params, { limit: 100 });
+  const { limit, geofence, enableFuzzySearch, truncateSmallMatch } = _.defaults(params, {
+    limit: 100,
+    enableFuzzySearch: false,
+    truncateSmallMatch: true
+  });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
   let measure1Sum = 0;
@@ -160,16 +164,27 @@ app.get('/search/:query', (req, res) => {
       .flatten()
       .map(({ start, length }) => querySplitted.slice(start, start + length))
       .map(fp.join(''))
+      .sortBy('length')
       .value();
     const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
     _.each(result, term => {
+      let match = '';
       term.measure2 = _.chain(subsets)
-        .map(subset => (_.includes(stripVariationSelectors(term.emoji), stripVariationSelectors(subset)) ? 1 : 0) * _.size(subset))
+        .map(subset => {
+          if (_.includes(stripVariationSelectors(term.emoji), stripVariationSelectors(subset))) {
+            match = _.maxBy([ subset, match ], 'length');
+            return _.size(subset);
+          }
+          return 0;
+        })
         .sum()
         .divide(subsetLengthSum)
         .value();
+      term.match = match;
     });
   }
+
+  const maxMatchLength = _.chain(result).map('match').map(fp.size).max().value();
 
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
@@ -182,14 +197,16 @@ app.get('/search/:query', (req, res) => {
   const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
+  const filterSmallMatch = truncateSmallMatch ? o => _.size(o.match) === maxMatchLength : () => true;
 
-  if (!fuzzy) _.each(result, term => term.measure1 = 0);
+  if (!enableFuzzySearch) _.each(result, term => term.measure1 = 0);
 
   result = _.chain(result)
     .map(o => ({ ...o, measure: _.sum([ o.measure1 || 0, o.measure2 || 0 ]) }))
     .filter(o => !!o.measure)
     .filter(filterIsPointInside)
     .filter(filterIsPointInCircle)
+    .filter(filterSmallMatch)
     .sortBy('measure')
     .reverse()
     .take(limit)
