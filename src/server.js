@@ -61,7 +61,7 @@ const documentPostSchema = {
       {
         type: 'object',
         properties: {
-          geolocation: { oneOf: [ 
+          geolocation: { oneOf: [
             { type: 'object',
               properties: {
                 latitude: { type: 'number' },
@@ -142,10 +142,15 @@ app.get('/search/:query', (req, res) => {
     return;
   }
   const { query } = req.params || {};
-  const { limit, geofence, enableFuzzySearch, truncateSmallMatch } = _.defaults(params, {
+  const {
+    limit, geofence,
+    enableFuzzySearch, persistOrder, truncateSmallMatches, truncateSmallScore
+  } = _.defaults(params, {
     limit: 100,
     enableFuzzySearch: false,
-    truncateSmallMatch: true
+    persistOrder: false, // If true, order matters when calculating subsets
+    truncateSmallMatches: true, // If true, only keep the result with highest match
+    truncateSmallScore: false, // If true, only keep the result with highest score
   });
   const kws = isAscii(query) ? query : convertEmojiToKeywords(emojiLib, query).join(' ');
   let result = {};
@@ -159,20 +164,22 @@ app.get('/search/:query', (req, res) => {
   // test n-gram
   if (!isAscii(query)) {
     const querySplitted = _.split(query, '');
-    const subsets = _.chain([...Array(querySplitted.length).keys()])
-      .map(start => _.map([...Array(querySplitted.length - start).keys()], offset => ({ start, length: offset + 1 })))
-      .flatten()
-      .map(({ start, length }) => querySplitted.slice(start, start + length))
-      .map(fp.join(''))
-      .sortBy('length')
-      .value();
+    const subsets = persistOrder
+      ? _.chain([...Array(querySplitted.length).keys()])
+        .map(start => _.map([...Array(querySplitted.length - start).keys()], offset => ({ start, length: offset + 1 })))
+        .flatten()
+        .map(({ start, length }) => querySplitted.slice(start, start + length))
+        .map(fp.join(''))
+        .sortBy('length')
+        .value()
+      : querySplitted;
     const subsetLengthSum = _.chain(subsets).map(fp.size).sum().value();
     _.each(result, term => {
-      let match = '';
+      let matches = [];
       term.measure2 = _.chain(subsets)
         .map(subset => {
           if (_.includes(stripVariationSelectors(term.emoji), stripVariationSelectors(subset))) {
-            match = _.maxBy([ subset, match ], 'length');
+            matches = _.union([ subset ], matches);
             return _.size(subset);
           }
           return 0;
@@ -180,11 +187,11 @@ app.get('/search/:query', (req, res) => {
         .sum()
         .divide(subsetLengthSum)
         .value();
-      term.match = match;
+      term.matches = matches;
     });
   }
 
-  const maxMatchLength = _.chain(result).map('match').map(fp.size).max().value();
+  const maxMatchesLength = _.chain(result).map('matches').map(fp.size).max().value();
 
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
@@ -197,20 +204,28 @@ app.get('/search/:query', (req, res) => {
   const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
-  const filterSmallMatch = truncateSmallMatch ? o => _.size(o.match) === maxMatchLength : () => true;
+  const filterSmallMatch = truncateSmallMatches ? o => _.size(o.matches) === maxMatchesLength : () => true;
 
   if (!enableFuzzySearch) _.each(result, term => term.measure1 = 0);
 
   result = _.chain(result)
     .map(o => ({ ...o, measure: _.sum([ o.measure1 || 0, o.measure2 || 0 ]) }))
     .filter(o => !!o.measure)
+    .value();
+
+  const maxMeasure = _.chain(result).map('measure').max().value();
+  const filterSmallScore = truncateSmallScore ? o => o.measure === maxMeasure : () => true;
+
+  result = _.chain(result)
     .filter(filterIsPointInside)
     .filter(filterIsPointInCircle)
     .filter(filterSmallMatch)
+    .filter(filterSmallScore)
     .sortBy('measure')
     .reverse()
     .take(limit)
-    .value()
+    .value();
+
   res.json(result);
 })
 
