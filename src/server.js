@@ -191,8 +191,6 @@ app.get('/search/:query', (req, res) => {
     });
   }
 
-  const maxMatchesLength = _.chain(result).map('matches').map(fp.size).max().value();
-
   const filterIsPointInside = geofence && !_.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInside(item.meta.geolocation, [
       { latitude: geofence.latitude - geofence.latitudeDelta, longitude: geofence.longitude - geofence.longitudeDelta },
@@ -204,7 +202,11 @@ app.get('/search/:query', (req, res) => {
   const filterIsPointInCircle = geofence && _.has(geofence, 'radius')
     ? item => !_.has(item, 'meta.geolocation') || geolib.isPointInCircle(item.meta.geolocation, geofence, geofence.radius)
     : () => true;
-  const filterSmallMatch = truncateSmallMatches ? o => _.size(o.matches) === maxMatchesLength : () => true;
+
+  result = _.chain(result)
+    .filter(filterIsPointInside)
+    .filter(filterIsPointInCircle)
+    .value();
 
   if (!enableFuzzySearch) _.each(result, term => term.measure1 = 0);
 
@@ -213,12 +215,13 @@ app.get('/search/:query', (req, res) => {
     .filter(o => !!o.measure)
     .value();
 
+  const maxMatchesLength = _.chain(result).map('matches').map(fp.size).max().value();
+  const filterSmallMatch = truncateSmallMatches ? o => _.size(o.matches) === maxMatchesLength : () => true;
+
   const maxMeasure = _.chain(result).map('measure').max().value();
   const filterSmallScore = truncateSmallScore ? o => o.measure === maxMeasure : () => true;
 
   result = _.chain(result)
-    .filter(filterIsPointInside)
-    .filter(filterIsPointInCircle)
     .filter(filterSmallMatch)
     .filter(filterSmallScore)
     .sortBy('measure')
