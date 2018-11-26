@@ -144,11 +144,13 @@ app.get('/search/:query', (req, res) => {
   const { query } = req.params || {};
   const {
     limit, geofence,
-    enableFuzzySearch, persistOrder, truncateSmallMatches, truncateSmallScore
+    enableFuzzySearch, persistOrder, truncateSmallMatches, truncateSmallScore, onlyKeepPerfectMatch
   } = _.defaults(params, {
-    limit: 100,
+    limit: 50,
     enableFuzzySearch: false,
     persistOrder: false, // If true, order matters when calculating subsets
+    onlyKeepPerfectMatch: true, // True then only reviews that match all the query will keep.
+    // The following two options only work when onlyKeepPerfectMatch = false
     truncateSmallMatches: true, // If true, only keep the result with highest match
     truncateSmallScore: false, // If true, only keep the result with highest score
   });
@@ -221,7 +223,10 @@ app.get('/search/:query', (req, res) => {
   const maxMeasure = _.chain(result).map('measure').max().value();
   const filterSmallScore = truncateSmallScore ? o => o.measure === maxMeasure : () => true;
 
+  const filterPerfectMatch = onlyKeepPerfectMatch ? o => o.measure2 === 1 : () => true;
+
   result = _.chain(result)
+    .filter(filterPerfectMatch)
     .filter(filterSmallMatch)
     .filter(filterSmallScore)
     .sortBy('measure')
